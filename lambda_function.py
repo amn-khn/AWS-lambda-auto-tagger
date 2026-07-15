@@ -1,28 +1,42 @@
 import boto3
 
-s3 = boto3.client("s3")
+ec2 = boto3.client("ec2")
 
-OWNER_NAME = "Mohammed Amankhan"
 
 def lambda_handler(event, context):
 
-    print(event)
+    try:
 
-    bucket_name = event["detail"]["requestParameters"]["bucketName"]
+        instance_ids = []
 
-    s3.put_bucket_tagging(
-        Bucket=bucket_name,
-        Tagging={
-            "TagSet": [
-                {
-                    "Key": "Owner",
-                    "Value": OWNER_NAME
-                }
-            ]
-        }
-    )
+        items = event["detail"]["responseElements"]["instancesSet"]["items"]
+
+        for item in items:
+            instance_ids.append(item["instanceId"])
+
+        response = ec2.describe_instances(
+            InstanceIds=instance_ids
+        )
+
+        for reservation in response["Reservations"]:
+            for instance in reservation["Instances"]:
+
+                tags = instance.get("Tags", [])
+
+                if len(tags) == 0:
+
+                    print(f"Stopping {instance['InstanceId']}")
+
+                    ec2.stop_instances(
+                        InstanceIds=[instance["InstanceId"]]
+                    )
+
+                else:
+                    print(f"{instance['InstanceId']} has tags.")
+
+    except Exception as e:
+        print(e)
 
     return {
-        "statusCode": 200,
-        "body": f"Tag added to {bucket_name}"
+        "statusCode":200
     }
